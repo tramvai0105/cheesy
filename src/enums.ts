@@ -3,3 +3,11 @@ export enum Stage{
     Game,
     Info,
   }
+
+export enum Dirc{
+  Up,
+  Down,
+  Left,
+  Right,
+  None,
+}

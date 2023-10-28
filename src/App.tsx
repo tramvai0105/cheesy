@@ -9,7 +9,7 @@ function App() {
 
   const version = useMobileVersion();
 
-  const [stage, setStage] = useState<Stage>(Stage.Menu)
+  const [stage, setStage] = useState<Stage>(Stage.Game)
 
   function getStage(){
     if(stage == Stage.Menu){
