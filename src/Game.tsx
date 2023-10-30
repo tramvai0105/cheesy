@@ -3,95 +3,241 @@ import { Circle, Image as Img, Layer, Line, Rect, Stage } from "react-konva";
 import { Dispatch, SetStateAction, useEffect } from 'react';
 import {Dirc, Stage as St} from "./enums";
 import pig from "./img/pig.png"
-import path from "path";
+import monkey from "./img/monk.png" 
+import Obst from "./Obst";
+import Node from "./Node";
+import Path from "./Path";
+import Food from "./Food";
+import cheese from "./img/cheese.png";
 
 interface Props{
     setStage: Dispatch<SetStateAction<St>>,
 }
 
-class Obst{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    c: number;
-    b: number;
-
-    constructor(x: number, y: number, width: number, 
-        height: number, c: number = 1, b: number = 0){
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
-        this.c = c;
-        this.b = b;
-    }
-
-    getDims(){
-        return [this.x*15 + this.c, this.y*15 + this.c, this.width*15 - this.b*this.width, this.height*15 - this.b*this.height];
-    }
-
-    drawObst(i: number){
-        return(
-            <Rect key={i} x={this.x*15 + this.c} y={this.y*15 + this.c} height={this.height*15 - this.b*this.height} width={this.width*15 - this.b*this.width} stroke="#ADD8E6"/>
-        )
-    }
+function getRandomInt(min: number, max: number) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-class Node{
-    x: number;
-    y: number;
-    dirs: Dirc[];
-    paths: Path[] = [];
-
-    constructor(x: number, y: number, dirs: Dirc[] = []){
-        this.x = x;
-        this.y = y;
-        this.dirs = dirs;
-    }
-
-    drawNode(i: number){
-        return <Circle key={i} x={this.x * 15 + 15 + 1} y={this.y * 15 + 15 + 1} radius={5} fill="green"/>
-    }
+enum GameStatus{
+    Start,
+    Play,
+    Over,
 }
 
-class Path{
+class Monkey{
     x: number;
     y: number;
-    l: number;
-    aligmenent: boolean;
-    dirs: Dirc[];
-    nodes: Node[] = [];
-    h: number;
-    w: number;
+    dims: number;
+    progress: number = 0;
+    direction : Dirc = Dirc.None;
+    speed: number = 2;
+    lastPlace: Node | Path | null = null;
+    moving: boolean = true;
+    banDirections : Dirc[] = [Dirc.None];
+    allowDirs: Dirc[] = [Dirc.None];
+    moveOrder: [Dirc, (Node|Path|null)][] = [];
+    moveTarget: Node | Path | null = null;
+    targetProgress: number | null = null;
+    node: Node | null = null;
+    path: Path | null = null;
+    setMonkXY: Dispatch<React.SetStateAction<number[]>>;
 
-    constructor(x: number, y: number, l: number, aligmenent: boolean){
+    constructor(node: Node, setMonkXY: Dispatch<React.SetStateAction<number[]>>){
+        this.setMonkXY = setMonkXY;
+        this.x = node.x;
+        this.y = node.y;
+        this.node = node;
+        setMonkXY([this.x*15, this.y*15]);
+        this.dims = 20
+    }
+    
+    filterDirs(node: Node){
+        let dirs : Dirc[] = [];
+        if(this.direction == Dirc.Up){
+            dirs = node.dirs.filter((dir)=>dir != Dirc.Down)
+        }
+        if(this.direction == Dirc.Down){
+            dirs = node.dirs.filter((dir)=>dir != Dirc.Up)
+        }
+        if(this.direction == Dirc.Right){
+            dirs = node.dirs.filter((dir)=>dir != Dirc.Left)
+        }
+        if(this.direction == Dirc.Left){
+            dirs = node.dirs.filter((dir)=>dir != Dirc.Right)
+        }
+        let dir = dirs[getRandomInt(0, dirs.length - 1)]
+        return dir;
+    }
+
+    setCoords(x: number, y: number){
         this.x = x;
         this.y = y;
-        this.l = l;
-        this.aligmenent = aligmenent;
-        if(!aligmenent){
-            this.w = this.l * 15;
-            this.h = 3;
-            this.dirs = [Dirc.Right, Dirc.Left];
-        }else{
-            this.w = 3;
-            this.h = this.l * 15;
-            this.dirs = [Dirc.Up, Dirc.Down];
+    }
+
+    findPath(target: Node | Path | null, prog: number){
+        if(target == null){
+            return;
+        }
+        if(target == this.path){
+            this.targetProgress = prog;
+            return;
+        }
+        let reachable: (Node|Path|null)[];
+        reachable = [this.node || this.path]
+        if(reachable[0] == null){
+            return;
+        }
+        let explored: (Node|Path|null)[] = [];
+        while(reachable.length > 0){
+            let node = reachable[getRandomInt(0, reachable.length - 1)]
+            if(node == target){
+                let path: (Node|Path)[] = [];
+                let dirs: Dirc[] = [];
+                while(node != null){
+                    path.push(node);
+                    dirs.push(node.prev.dir);
+                    node = node.prev.node;
+                }
+                dirs.pop()
+                path.pop()
+                dirs.reverse()
+                path.reverse()
+                let res: [Dirc, (Node|Path|null)][] = [];
+                for(let i = 0; i < dirs.length + 0;i++){
+                    res.push([dirs[i], path[i]])
+                }
+                let lastRes;
+                if(res[res.length - 1]){
+                lastRes = res[res.length - 1][1]}
+                if(lastRes && lastRes.type == "path"){
+                    this.targetProgress = prog;
+                }
+                this.moveOrder = res;
+                console.log(res);
+                this.lastPlace = target;
+                return;
+            }
+            reachable.splice(reachable.indexOf(node), 1)
+            explored.push(node);
+            if(node && node instanceof Node){ 
+                let newReachable: Path[] | undefined = node.paths.map(path=> path.path).filter((path)=>{
+                    return !explored.includes(path);
+                })                
+                if(newReachable == undefined){
+                    return;
+                }
+                for(let i = 0; i < newReachable.length; i++){
+                    if(!reachable.includes(newReachable[i])){
+                        newReachable[i].prev.node = node;
+                        let nr = newReachable[i]
+                        newReachable[i].prev.dir = node.paths.filter(path=> path.path == nr)[0].dir
+                        reachable.push(newReachable[i])
+                    }
+                } 
+            }
+            if(node && node instanceof Path){
+                let newReachable: Node[] | undefined = node.nodes.map(path=> path.node).filter((node)=>{
+                    return !explored.includes(node);
+                })
+                
+                if(newReachable == undefined){
+                    return;
+                }
+                for(let i = 0; i < newReachable.length; i++){
+                    if(!reachable.includes(newReachable[i])){
+                        newReachable[i].prev.node = node;
+                        let nr = newReachable[i]
+                        newReachable[i].prev.dir = node.nodes.filter(node=> node.node == nr)[0].dir
+                        reachable.push(newReachable[i])
+                    }
+                }
+            }
         }
     }
 
-    drawPath(i: number){
-        return <Rect key={i} height={this.h} width={this.w} x={this.x * 15 + 15} y={this.y * 15 + 15} fill="green"/>
+    checkPath(){
+        if(this.moveTarget != null && (this.node == this.moveTarget || this.path == this.moveTarget)){
+            this.moveOrder.shift()
+            this.moveTarget = null;
+        }
+        if(this.moveOrder.length > 0 && this.moveTarget == null){
+            this.moveTarget = this.moveOrder[0][1]
+            this.direction = this.moveOrder[0][0]
+        }
+        if(this.path){
+            if(this.progress >= this.path.l*15){
+                this.progress = 0;
+                this.node = this.path.nodes.filter(node=> node.dir == Dirc.Down || node.dir == Dirc.Right).map(node=>node.node)[0];
+                this.path = null;
+                this.allowDirs = this.node.dirs;
+            }
+            else if(this.progress <= 0){
+                this.progress = 0;
+                this.node = this.path.nodes.filter(node=> node.dir == Dirc.Up || node.dir == Dirc.Left).map(node=>node.node)[0];
+                this.path = null;
+                this.allowDirs = this.node.dirs;
+            }
+        }else if(this.node){
+            let node = this.node;
+            this.x = this.node.x*15 + 3
+            this.y = this.node.y*15 + 5
+            if(this.direction === Dirc.Right){
+                for (let i = 0; i < node.paths.length; i++) {
+                    let p = node.paths[i]
+                    if(p.dir == Dirc.Right){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
+                        this.node = null;
+                    }
+                }
+            }
+            if(this.direction === Dirc.Left){
+                for (let i = 0; i < node.paths.length; i++) {
+                    let p = node.paths[i]
+                    if(p.dir == Dirc.Left){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
+                        this.node = null;
+                        this.progress = this.path.l*15
+                    }
+                }
+            }
+            if(this.direction === Dirc.Up){
+                for (let i = 0; i < node.paths.length; i++) {
+                    let p = node.paths[i]
+                    if(p.dir == Dirc.Up){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
+                        this.node = null;
+                        this.progress = this.path.l*15
+                    }
+                }
+            }
+            if(this.direction === Dirc.Down){
+                for (let i = 0; i < node.paths.length; i++) {
+                    let p = node.paths[i]
+                    if(p.dir == Dirc.Down){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
+                        this.node = null;
+                    }
+                }
+            }
+        }
     }
 }
 
 class _Game{
-    
+    status: GameStatus = GameStatus.Play;
     banDirections : Dirc[] = [Dirc.None];
     allowDirs: Dirc[] = [Dirc.None];
+    monk: Monkey;
     speed: number = 2;
     moving: boolean = true;
+    foodCounter : number = 0;
+    foodQuantity : number = 15;
     pigXY = [3, 3];
     progress: number = 0;
     direction : Dirc = Dirc.None;
@@ -135,7 +281,7 @@ class _Game{
         ];
     nodes: Node[] = [
         new Node(0, 0, [Dirc.Right, Dirc.Down]),
-        new Node(10, 0, [Dirc.Left]),
+        new Node(10, 0, [Dirc.Left, Dirc.Down]),
         new Node(0, 3, [Dirc.Up, Dirc.Right, Dirc.Down]),
         new Node(10, 3, [Dirc.Left, Dirc.Up, Dirc.Down]),
         new Node(0, 15, [Dirc.Right, Dirc.Up, Dirc.Down]),
@@ -147,7 +293,7 @@ class _Game{
         new Node(14, 0, [Dirc.Down, Dirc.Right]),
         new Node(17, 0, [Dirc.Down, Dirc.Right, Dirc.Left]),
         new Node(17, 6, [Dirc.Up, Dirc.Right]),
-        new Node(24, 0, [Dirc.Left, Dirc.Right]),
+        new Node(24, 0, [Dirc.Left, Dirc.Down]),
         new Node(24, 3, [Dirc.Left, Dirc.Up]),
         new Node(24, 6, [Dirc.Left, Dirc.Down]),
         new Node(24, 9, [Dirc.Left, Dirc.Down, Dirc.Up]),
@@ -167,7 +313,7 @@ class _Game{
         new Node(17, 24, [Dirc.Up, Dirc.Right]),
         new Node(17, 18, [Dirc.Down, Dirc.Right, Dirc.Left]),
         new Node(19, 18, [Dirc.Up, Dirc.Left]),
-        new Node(19, 16, [Dirc.Up, Dirc.Left]),
+        new Node(19, 16, [Dirc.Down, Dirc.Left]),
         new Node(24, 12, [Dirc.Up, Dirc.Left, Dirc.Down]),
         new Node(8, 9, [Dirc.Right, Dirc.Down]),
         new Node(24, 16, [Dirc.Up, Dirc.Left, Dirc.Down]),
@@ -248,11 +394,37 @@ class _Game{
         new Path(8, 9, 2, false),
         ];
     path: Path | null = null;
+    foods: Food[] = []; 
 
-    constructor(setXY: Dispatch<React.SetStateAction<number[]>>){
+    constructor(setXY: Dispatch<React.SetStateAction<number[]>>, setMonkXY: Dispatch<React.SetStateAction<number[]>>){
         this.setXY = setXY;
         this.keyDownListener();
         this.connectPathsAndNodes();
+        let monkStartNode: Node[] = this.nodes.filter(node=> node.x == 16 && node.y == 12); 
+        this.monk = new Monkey(monkStartNode[0], setMonkXY)
+    }
+
+    start(){
+        this.status = GameStatus.Play;
+        this.addFoods()
+        this.monk.findPath(this.node || this.path, this.progress);
+        this.clearPrev();
+    }
+
+    gameover(){
+        this.status = GameStatus.Over;
+    }
+
+
+
+    clearPrev(){
+        for(let i = 0; i < this.paths.length; i++){
+            this.paths[i].prev.node = null;
+            this.paths[i].prev.dir = Dirc.None;
+        }for(let i = 0; i < this.nodes.length; i++){
+            this.nodes[i].prev.node = null;
+            this.nodes[i].prev.dir = Dirc.None;
+        }
     }
 
     placeObstl(){
@@ -275,19 +447,49 @@ class _Game{
         )
     }
 
+    placeFoods(){
+        let foods = this.nodes.filter((node)=> node.food);
+        return(
+            foods.map((node, i)=>{if(node.food){return node.food.drawFood(i)}})
+        )
+    }
+
+    addFoods(){
+        for (var i = this.nodes.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var temp = this.nodes[i];
+            this.nodes[i] = this.nodes[j];
+            this.nodes[j] = temp;
+        }
+        for(let i = 0; i < this.foodQuantity; i++){
+            if(this.nodes[i]){
+                if(this.nodes[i].x == 0 && this.nodes[i].y == 0){
+                    this.nodes[i+16].food = new Food(this.nodes[i+16].x, this.nodes[i+16].y)
+                }else{
+                this.nodes[i].food = new Food(this.nodes[i].x, this.nodes[i].y)
+                }
+            }else{throw Error("Недостаточно нод")}
+        }
+    }
+
     connectPathsAndNodes=()=>{
         for(let i = 0; i < this.paths.length; i++){
             let path = this.paths[i];
             for(let j = 0; j < this.nodes.length; j++){
                 let node = this.nodes[j];
                 if(path.x == node.x && path.y == node.y){
-                    this.paths[i].nodes[0] = node;
+                    if(!path.aligmenent){
+                        this.paths[i].nodes.push({dir: Dirc.Left, node: node});
+                    }
+                    if(path.aligmenent){
+                        this.paths[i].nodes.push({dir: Dirc.Up, node: node});
+                    }
                 }
                 if(!path.aligmenent && path.x + path.l == node.x && path.y == node.y){
-                    this.paths[i].nodes[1] = node;
+                    this.paths[i].nodes.push({dir: Dirc.Right, node: node});
                 }
                 if(path.aligmenent && path.x == node.x && path.y + path.l == node.y){
-                    this.paths[i].nodes[1] = node;
+                    this.paths[i].nodes.push({dir: Dirc.Down, node: node});
                 }
             }
         }
@@ -295,11 +497,19 @@ class _Game{
             let path = this.paths[i];
             for(let j = 0; j < this.nodes.length; j++){
                 let node = this.nodes[j];
-                if(node == path.nodes[0]){
-                    this.nodes[j].paths.push(path);
-                }
-                if(node == path.nodes[1]){
-                    this.nodes[j].paths.push(path);
+                if(path.nodes.map(node=>node.node).includes(node)){
+                    if(!path.aligmenent && node.x == path.x && node.y == path.y){
+                        this.nodes[j].paths.push({dir: Dirc.Right, path: path});
+                    }
+                    if(!path.aligmenent && node.x == path.x + path.l && node.y == path.y){
+                        this.nodes[j].paths.push({dir: Dirc.Left, path: path});
+                    }
+                    if(path.aligmenent && node.x == path.x && node.y == path.y + path.l){
+                        this.nodes[j].paths.push({dir: Dirc.Up, path: path});
+                    }
+                    if(path.aligmenent && node.x == path.x && node.y == path.y){
+                        this.nodes[j].paths.push({dir: Dirc.Down, path: path});
+                    }
                 }
             }
         }
@@ -338,33 +548,92 @@ class _Game{
         return [false, Dirc.None]
     }
 
+    move(){
+        if(this.moving){
+            this.checkPath()
+            if(this.direction == Dirc.Right && this.path && this.allowDirs.includes(this.direction)){            
+                this.pigXY = [this.pigXY[0] += this.speed, this.pigXY[1]];
+                this.progress += this.speed;
+                }
+            if(this.direction == Dirc.Left && this.path && this.allowDirs.includes(this.direction)){
+                this.pigXY = [this.pigXY[0] -= this.speed, this.pigXY[1]];
+                this.progress -= this.speed
+                }
+            if(this.direction == Dirc.Up && this.path  && this.allowDirs.includes(this.direction)){
+                this.pigXY = [this.pigXY[0], this.pigXY[1] -= this.speed];
+                this.progress -= this.speed;
+                }
+            if(this.direction == Dirc.Down && this.path  && this.allowDirs.includes(this.direction)){
+                this.pigXY = [this.pigXY[0], this.pigXY[1] += this.speed];
+                this.progress += this.speed;
+                }    
+            }
+    }
+
+    moveMonk(){
+        if(this.monk.targetProgress != null && this.monk.moveOrder.length < 1){
+            if(!this.monk.path?.aligmenent){
+                if(this.monk.targetProgress < this.progress){
+                    this.monk.direction = Dirc.Left;
+                }
+                if(this.monk.targetProgress > this.progress){
+                    this.monk.direction = Dirc.Right;
+                }
+            }
+            if(this.monk.path?.aligmenent){
+                if(this.monk.targetProgress > this.progress){
+                    this.monk.direction = Dirc.Up;
+                }
+                if(this.monk.targetProgress < this.progress){
+                    this.monk.direction = Dirc.Down;
+                }
+            }
+        }else{
+            this.monk.checkPath()
+        }
+        if(this.monk.direction == Dirc.Right && this.monk.path && this.monk.allowDirs.includes(this.monk.direction)){            
+            this.monk.x += this.monk.speed
+            this.monk.progress += this.monk.speed
+            }
+        if(this.monk.direction == Dirc.Left && this.monk.path && this.monk.allowDirs.includes(this.monk.direction)){
+            this.monk.x -= this.monk.speed;
+            this.monk.progress -= this.monk.speed
+            }
+        if(this.monk.direction == Dirc.Up && this.monk.path  && this.monk.allowDirs.includes(this.monk.direction)){
+            this.monk.y -= this.monk.speed;
+            this.monk.progress -= this.monk.speed;
+            }
+        if(this.monk.direction == Dirc.Down && this.monk.path  && this.monk.allowDirs.includes(this.monk.direction)){
+            this.monk.y += this.monk.speed;
+            this.monk.progress += this.monk.speed;
+            }    
+    }
+
     loop=()=>{
+        let mt = 0
         let lp = 0;
         let _loop = () =>{
-            if(lp > 1){
-                if(this.moving){
-                    // this.colision();
-                    this.checkPath()
-                    if(this.direction == Dirc.Right && this.path && this.allowDirs.includes(this.direction)){            
-                        this.pigXY = [this.pigXY[0] += this.speed, this.pigXY[1]];
-                        this.progress += this.speed;
-                        }
-                    if(this.direction == Dirc.Left && this.path && this.allowDirs.includes(this.direction)){
-                        this.pigXY = [this.pigXY[0] -= this.speed, this.pigXY[1]];
-                        this.progress -= this.speed
-                        }
-                    if(this.direction == Dirc.Up && this.path  && this.allowDirs.includes(this.direction)){
-                        this.pigXY = [this.pigXY[0], this.pigXY[1] -= this.speed];
-                        this.progress -= this.speed;
-                        }
-                    if(this.direction == Dirc.Down && this.path  && this.allowDirs.includes(this.direction)){
-                        this.pigXY = [this.pigXY[0], this.pigXY[1] += this.speed];
-                        this.progress += this.speed;
-                        }    
+            if(lp > 1 && this.status == GameStatus.Play){
+                if(mt > 25){
+                    let target = this.node || this.path;
+                    if (target != this.monk.lastPlace) {
+                    this.clearPrev();
+                    this.monk.moveTarget = null;
+                    this.monk.moveOrder = [];
+                    this.monk.direction = Dirc.None;
+                    this.monk.findPath(this.node || this.path, this.progress);
+                    console.log("found path");
                     }
-                    this.setXY(this.pigXY);
-                    lp = 0;
-            }
+                    mt = 0;
+                }
+                this.move();
+                this.moveMonk();
+                this.setXY(this.pigXY);
+                this.monk.setMonkXY([this.monk.x, this.monk.y]);
+                this.colision()
+                lp = 0;
+                }
+            mt += 1;
             lp += 1;
             requestAnimationFrame(_loop);
         }
@@ -374,14 +643,10 @@ class _Game{
     colision(){
         let borders = [[0, 391, 400, 1],[-2, 0, 1, 401], [0, 1,400,1], [391, 0, 1, 400]];
         let obstls = [...this.obstls.map((obst)=> obst.getDims())];
-        let colisionObjects = [...borders, ...obstls];
-
-        this.banDirections = [Dirc.None]
-        for(let i = 0; i < colisionObjects.length; i++){
-            let res: [boolean, Dirc] = this.rectCross(colisionObjects[i])       
-            if(res[0]){
-                this.banDirections.push(res[1]);
-            }
+        let colisionObjects = [[this.monk.x, this.monk.y, 25, 25]];
+        let res: [boolean, Dirc] = this.rectCross(colisionObjects[0])       
+        if(res[0]){
+            this.gameover();
         }
     }
 
@@ -393,18 +658,22 @@ class _Game{
             }
             if(this.progress >= this.path.l*15){
                 this.progress = 0;
-                this.node = this.path.nodes[1];
+                this.node = this.path.nodes.filter(node=> node.dir == Dirc.Down || node.dir == Dirc.Right).map(node=>node.node)[0];
                 this.path = null;
                 this.allowDirs = this.node.dirs;
             }
             else if(this.progress <= 0){
                 this.progress = 0;
-                this.node = this.path.nodes[0];
+                this.node = this.path.nodes.filter(node=> node.dir == Dirc.Up || node.dir == Dirc.Left).map(node=>node.node)[0];
                 this.path = null;
                 this.allowDirs = this.node.dirs;
             }
         }else if(this.node){
-            let node = this.node
+            let node = this.node;  
+            if(this.node.food){
+                this.node.food = null;
+                this.foodCounter += 1; 
+            }
             this.pigXY = [this.node.x*15 + 3, this.node.y*15 + 5]
             if(this.directionQuerry != Dirc.None){
                 this.direction = this.directionQuerry;
@@ -413,9 +682,9 @@ class _Game{
             if(this.direction === Dirc.Right){
                 for (let i = 0; i < node.paths.length; i++) {
                     let p = node.paths[i]
-                    if(!p.aligmenent && p.x == node.x && p.y == node.y){
-                        this.path = p;
-                        this.allowDirs = p.dirs;
+                    if(p.dir == Dirc.Right){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
                         this.node = null;
                     }
                 }
@@ -423,9 +692,9 @@ class _Game{
             if(this.direction === Dirc.Left){
                 for (let i = 0; i < node.paths.length; i++) {
                     let p = node.paths[i]
-                    if(!p.aligmenent && p.x + p.l == node.x && p.y == node.y){
-                        this.path = p;
-                        this.allowDirs = p.dirs;
+                    if(p.dir == Dirc.Left){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
                         this.node = null;
                         this.progress = this.path.l*15
                     }
@@ -434,9 +703,9 @@ class _Game{
             if(this.direction === Dirc.Up){
                 for (let i = 0; i < node.paths.length; i++) {
                     let p = node.paths[i]
-                    if(p.aligmenent && p.x == node.x && p.y + p.l == node.y){
-                        this.path = p;
-                        this.allowDirs = p.dirs;
+                    if(p.dir == Dirc.Up){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
                         this.node = null;
                         this.progress = this.path.l*15
                     }
@@ -445,9 +714,9 @@ class _Game{
             if(this.direction === Dirc.Down){
                 for (let i = 0; i < node.paths.length; i++) {
                     let p = node.paths[i]
-                    if(p.aligmenent && p.x == node.x && p.y == node.y){
-                        this.path = p;
-                        this.allowDirs = p.dirs;
+                    if(p.dir == Dirc.Down){
+                        this.path = p.path;
+                        this.allowDirs = p.path.dirs;
                         this.node = null;
                     }
                 }
@@ -484,7 +753,8 @@ class _Game{
 function Game({setStage}:Props){
 
     const [pigXYState, setPigXYState] = useState([3, 3])
-    const [game, setGame] = useState(new _Game(setPigXYState));
+    const [monkXYState, setMonkXYState] = useState([100, 100])
+    const [game, setGame] = useState(()=>new _Game(setPigXYState, setMonkXYState));
 
     useEffect(()=>{
         game.gameLoop();
@@ -495,9 +765,20 @@ function Game({setStage}:Props){
         img.src = pig;
         let dims = 27
 
+        if(game.status == GameStatus.Play || game.status == GameStatus.Over){
         return(
             <Img width={dims} height={dims} x={pigXYState[0] - 1} y={pigXYState[1] - 3} image={img}/>
-        )
+        )}
+    }
+
+    function MonkEmoji(){
+        const img = new Image();
+        img.src = monkey;
+        let dims = 27
+        if(game.status == GameStatus.Play || game.status == GameStatus.Over){
+        return(
+            <Img width={dims} height={dims} x={monkXYState[0] - 2} y={monkXYState[1] - 2} image={img}/>
+        )}
     }
 
     function Grid(){
@@ -513,15 +794,23 @@ function Game({setStage}:Props){
     return(
         <React.Fragment>
             <span onClick={()=>setStage(St.Menu)} className='absolute noselect opacity-70 far-shadow-backtomenu text-[25px] bottom-[86%] right-[86%] text-yellow-50 border-[3px] border-white p-2 cursor-pointer hover:bg-white hover:text-black'>меню</span>
-            <div className="absolute border-[6px] far-shadow border-white p-2 -translate-x-[50%] -translate-y-[50%]">
+            <div className="absolute flex flex-row text-white text-[36px] bottom-[85%] left-[85%]">
+                <img className="w-[36px] h-[36px] m-3" src={cheese}/><span className="">{game.foodCounter}</span> 
+            </div>
+            {(game.status == GameStatus.Start)?
+            <div onClick={()=>game.start()} className="absolute cursor-pointer z-10 text-[40px] bg-white w-[220px] h-[220px] flex items-center justify-center 
+            rounded-full -translate-x-[50%] -translate-y-[50%] noselect"><span className="relative -translate-y-2">старт</span></div>:<></>}
+            <div className="absolute border-[6px] far-shadow-game border-white p-2 -translate-x-[50%] -translate-y-[50%]">
                 <Stage className="ml-[6px] mt-[6px]" width={401} height={401}>
                     <Layer>
                         {/* {Grid()} */}
                         {/* <Rect width={390} height={390} stroke="#ADD8E6"/> */}
                         {game.placeObstl()}
+                        {game.placeFoods()}
                         {/* {game.placeNodes()}
                         {game.placePaths()} */}
                         {PigEmoji()}
+                        {MonkEmoji()}
                     </Layer>
                 </Stage>
             </div>

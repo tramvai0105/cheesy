@@ -13,6 +13,10 @@
   filter: drop-shadow(65px 50px 4px rgba(0, 0, 0, 0.738));
 }
 
+.far-shadow-game{
+  filter: drop-shadow(65px 50px 4px rgba(0, 0, 0, 0.5));
+}
+
 .far-shadow-backtomenu{
   filter: drop-shadow(-10px 20px 4px rgba(0, 0, 0, 0.738));
 }
