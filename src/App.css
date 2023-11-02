@@ -9,6 +9,10 @@
   height: 100%;
 }
 
+.monk-bg{
+  background-image: url("./img/monk-right.png");
+}
+
 .far-shadow{
   filter: drop-shadow(65px 50px 4px rgba(0, 0, 0, 0.738));
 }

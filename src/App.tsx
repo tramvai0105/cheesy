@@ -4,12 +4,13 @@ import useMobileVersion from './useMobileVersion';
 import Menu from './Menu';
 import Game from './Game';
 import {Stage} from './enums';
+import Info from './Info';
 
 function App() {
 
   const version = useMobileVersion();
 
-  const [stage, setStage] = useState<Stage>(Stage.Game)
+  const [stage, setStage] = useState<Stage>(Stage.Info)
 
   function getStage(){
     if(stage == Stage.Menu){
@@ -20,6 +21,11 @@ function App() {
     else if(stage == Stage.Game){
       return(
         <Game setStage={setStage}/>
+      )
+    }
+    else if(stage == Stage.Info){
+      return(
+        <Info setStage={setStage}/>
       )
     }
   }

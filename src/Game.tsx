@@ -3,16 +3,24 @@ import { Circle, Image as Img, Layer, Line, Rect, Stage } from "react-konva";
 import { Dispatch, SetStateAction, useEffect } from 'react';
 import {Dirc, Stage as St} from "./enums";
 import pig from "./img/pig.png"
-import monkey from "./img/monk.png" 
+import monkeyl from "./img/monk-left.png" 
+import monkeyr from "./img/monk-right.png" 
 import Obst from "./Obst";
 import Node from "./Node";
 import Path from "./Path";
 import Food from "./Food";
 import cheese from "./img/cheese.png";
+import Cage from "./Cage";
 
 interface Props{
     setStage: Dispatch<SetStateAction<St>>,
 }
+
+function delay(duration: number = 50) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, duration);
+    });
+  }
 
 function getRandomInt(min: number, max: number) {
     min = Math.ceil(min);
@@ -24,14 +32,13 @@ enum GameStatus{
     Start,
     Play,
     Over,
+    Intro,
 }
 
 class Monkey{
     x: number;
     y: number;
     dims: number;
-    progress: number = 0;
-    direction : Dirc = Dirc.None;
     speed: number = 2;
     lastPlace: Node | Path | null = null;
     moving: boolean = true;
@@ -39,9 +46,10 @@ class Monkey{
     allowDirs: Dirc[] = [Dirc.None];
     moveOrder: [Dirc, (Node|Path|null)][] = [];
     moveTarget: Node | Path | null = null;
-    targetProgress: number | null = null;
     node: Node | null = null;
     path: Path | null = null;
+    progress: number = 0;
+    direction : Dirc = Dirc.None;
     setMonkXY: Dispatch<React.SetStateAction<number[]>>;
 
     constructor(node: Node, setMonkXY: Dispatch<React.SetStateAction<number[]>>){
@@ -76,12 +84,99 @@ class Monkey{
         this.y = y;
     }
 
-    findPath(target: Node | Path | null, prog: number){
+    startAnimation(setCage: Dispatch<React.SetStateAction<boolean>>, res: (value: unknown) => void){
+        let move = (s: number) => {
+            this.setCoords(this.x + s, this.y);
+            this.setMonkXY([this.x, this.y]);
+        }
+        Promise.resolve()
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay(650))
+            .then(()=>move(-6))
+            .then(()=>delay(500))
+            .then(()=>move(9))
+            .then(()=>delay(300))
+            .then(()=>move(-6))
+            .then(()=>delay(200))
+            .then(()=>move(9))
+            .then(()=>delay(200))
+            .then(()=>move(-6))
+            .then(()=>delay(500))
+            .then(()=>{move(30);setCage(false)})
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>move(2))
+            .then(()=>delay())
+            .then(()=>{
+                this.x = 16*15 + 1;
+                this.y = 12*15 + 5;
+                this.setMonkXY([this.x, this.y]);
+            })
+            .then(()=>delay(200))
+            .then(()=>res(null))
+    }
+
+    chooseNode(reacheble: (Node | Path | null)[], target: Node | Path){
+        let shortest: [Node | Path | null, number] = [null, 1000000000];
+        for(let i = 0; i < reacheble.length; i++){
+            let node = reacheble[i]
+            if(node){
+                let distance : number = 100000;
+                distance = Math.sqrt((target.x - node.x)**2 + (target.y - node.y)**2)
+                if(node instanceof Path){
+                    if(!node.aligmenent){
+                        distance = Math.sqrt((target.x - node.x + node.l)**2 + (target.y - node.y)**2)
+                    }
+                    if(node.aligmenent){
+                        distance = Math.sqrt((target.x - node.x)**2 + (target.y - node.y + node.l)**2)
+                    }
+                }
+                if(distance < shortest[1]){
+                    shortest = [node, distance];
+                }
+            }
+        }
+        return shortest[0];
+    }
+
+    findPath(target: Node | Path | null, prog: number, pigXY: {x: number, y: number}){
         if(target == null){
             return;
         }
         if(target == this.path){
-            this.targetProgress = prog;
             return;
         }
         let reachable: (Node|Path|null)[];
@@ -91,7 +186,7 @@ class Monkey{
         }
         let explored: (Node|Path|null)[] = [];
         while(reachable.length > 0){
-            let node = reachable[getRandomInt(0, reachable.length - 1)]
+            let node = this.chooseNode(reachable, target);
             if(node == target){
                 let path: (Node|Path)[] = [];
                 let dirs: Dirc[] = [];
@@ -111,9 +206,6 @@ class Monkey{
                 let lastRes;
                 if(res[res.length - 1]){
                 lastRes = res[res.length - 1][1]}
-                if(lastRes && lastRes.type == "path"){
-                    this.targetProgress = prog;
-                }
                 this.moveOrder = res;
                 console.log(res);
                 this.lastPlace = target;
@@ -230,19 +322,25 @@ class Monkey{
 }
 
 class _Game{
-    status: GameStatus = GameStatus.Play;
+    status: GameStatus = GameStatus.Start;
     banDirections : Dirc[] = [Dirc.None];
     allowDirs: Dirc[] = [Dirc.None];
     monk: Monkey;
     speed: number = 2;
     moving: boolean = true;
+    perf: number[] = [];
     foodCounter : number = 0;
     foodQuantity : number = 15;
     pigXY = [3, 3];
     progress: number = 0;
+    setCage: Dispatch<React.SetStateAction<boolean>>;
+    alert: boolean = false;
     direction : Dirc = Dirc.None;
-    directionQuerry : Dirc = Dirc.None;
+    directionQuerry : Dirc = Dirc.Down;
+    monkStartNode: Node[] = [];
+    pigStartNode: Node[] = [];
     setXY: Dispatch<React.SetStateAction<number[]>>;
+    cage: Cage = new Cage(15, 11)
     obstls: Obst[] = [
             new Obst(2, 2, 8, 1), 
             new Obst(2, 5, 8, 1),
@@ -260,7 +358,7 @@ class _Game{
             new Obst(6, 8, 2, 10),
             new Obst(10, 11, 6, 1),
             new Obst(10, 11, 1, 4),
-            new Obst(15, 11, 1, 4),
+            // new Obst(15, 11, 1, 4),
             new Obst(10, 14, 6, 1),
             new Obst(2, 5, 2, 10),
             new Obst(2, 17, 6, 1),
@@ -396,18 +494,31 @@ class _Game{
     path: Path | null = null;
     foods: Food[] = []; 
 
-    constructor(setXY: Dispatch<React.SetStateAction<number[]>>, setMonkXY: Dispatch<React.SetStateAction<number[]>>){
+    constructor(setXY: Dispatch<React.SetStateAction<number[]>>, setMonkXY: Dispatch<React.SetStateAction<number[]>>, setCage: Dispatch<React.SetStateAction<boolean>>){
         this.setXY = setXY;
         this.keyDownListener();
+        this.setCage = setCage;
         this.connectPathsAndNodes();
-        let monkStartNode: Node[] = this.nodes.filter(node=> node.x == 16 && node.y == 12); 
-        this.monk = new Monkey(monkStartNode[0], setMonkXY)
+        this.monkStartNode = this.nodes.filter(node=> node.x == 16 && node.y == 12); 
+        this.pigStartNode = this.nodes.filter(node=> node.x == 0 && node.y == 0); 
+        this.monk = new Monkey(this.monkStartNode[0], setMonkXY)
+    }
+
+    intro(){
+        this.status = GameStatus.Intro;
+        this.monk.setMonkXY([170, 185]);
+        this.monk.setCoords(170, 185);
+        this.addFoods()
+        new Promise(res=>this.monk.startAnimation(this.setCage, res))
+            .then(()=>{
+                this.alert = true;
+                setTimeout(()=>this.alert = false, 600)
+                this.start()})
     }
 
     start(){
         this.status = GameStatus.Play;
-        this.addFoods()
-        this.monk.findPath(this.node || this.path, this.progress);
+        this.monk.findPath(this.node || this.path, this.progress,{x: this.pigXY[0],y: this.pigXY[1]});
         this.clearPrev();
     }
 
@@ -415,7 +526,27 @@ class _Game{
         this.status = GameStatus.Over;
     }
 
-
+    restart(){ 
+        this.node = this.pigStartNode[0];
+        this.path = null;
+        this.banDirections = [Dirc.None];
+        this.allowDirs = [Dirc.None];
+        this.progress = 0;
+        this.direction = Dirc.None;
+        this.pigXY = [3, 3];
+        this.setXY(this.pigXY)
+        this.monk.moveOrder = [];
+        this.monk.moveTarget = null;
+        this.monk.node = this.monkStartNode[0];
+        this.monk.path = null;
+        this.monk.progress = 0;
+        this.monk.direction = Dirc.None;
+        this.monk.setCoords(this.monk.node.x*15, this.monk.node.y*15)
+        this.monk.setMonkXY([this.monk.node.x*15, this.monk.node.y*15]);
+        this.addFoods();
+        this.foodCounter = 0;
+        this.status = GameStatus.Play;
+        }
 
     clearPrev(){
         for(let i = 0; i < this.paths.length; i++){
@@ -523,7 +654,7 @@ class _Game{
     }
 
     rectCross(rect: number[]): [boolean, Dirc]{
-        let dim = 27
+        let dim = 5
         let pigRect = [this.pigXY[0], this.pigXY[1], dim, dim]
         if(this.intersect([pigRect[0] + dim, pigRect[0] + dim + this.speed], [rect[0], rect[0] + 3])
             && this.intersect([pigRect[1], pigRect[1] + dim],[rect[1], rect[1] + rect[3]]))
@@ -571,20 +702,23 @@ class _Game{
     }
 
     moveMonk(){
-        if(this.monk.targetProgress != null && this.monk.moveOrder.length < 1){
+        if(!this.monk.moving){
+            return;
+        }
+        if(this.monk.moveOrder.length < 1){
             if(!this.monk.path?.aligmenent){
-                if(this.monk.targetProgress < this.progress){
+                if(this.monk.progress > this.progress){
                     this.monk.direction = Dirc.Left;
                 }
-                if(this.monk.targetProgress > this.progress){
+                if(this.monk.progress < this.progress){
                     this.monk.direction = Dirc.Right;
                 }
             }
             if(this.monk.path?.aligmenent){
-                if(this.monk.targetProgress > this.progress){
+                if(this.monk.progress > this.progress){
                     this.monk.direction = Dirc.Up;
                 }
-                if(this.monk.targetProgress < this.progress){
+                if(this.monk.progress < this.progress){
                     this.monk.direction = Dirc.Down;
                 }
             }
@@ -611,18 +745,19 @@ class _Game{
 
     loop=()=>{
         let mt = 0
+        let gameSpeed = 1
         let lp = 0;
-        let _loop = () =>{
-            if(lp > 1 && this.status == GameStatus.Play){
-                if(mt > 25){
+        let _loop = (perf: number) =>{
+            if(lp > gameSpeed && this.status == GameStatus.Play){
+                if(mt > 4){
                     let target = this.node || this.path;
                     if (target != this.monk.lastPlace) {
-                    this.clearPrev();
-                    this.monk.moveTarget = null;
-                    this.monk.moveOrder = [];
-                    this.monk.direction = Dirc.None;
-                    this.monk.findPath(this.node || this.path, this.progress);
-                    console.log("found path");
+                        this.clearPrev();
+                        this.monk.moveTarget = null;
+                        this.monk.moveOrder = [];
+                        this.monk.direction = Dirc.None;
+                        this.monk.findPath(this.node || this.path, this.progress,{x: this.pigXY[0],y: this.pigXY[1]});
+                        console.log("found path");
                     }
                     mt = 0;
                 }
@@ -635,9 +770,19 @@ class _Game{
                 }
             mt += 1;
             lp += 1;
+            this.perf.push(performance.now())
+            if(this.perf.length > 2 && this.perf[this.perf.length - 1] - this.perf[this.perf.length - 2] > 30){
+                gameSpeed = 0;
+            }
+            if(this.perf.length > 2 && this.perf[this.perf.length - 1] - this.perf[this.perf.length - 2] < 30){
+                gameSpeed = 1;
+            }
+            if(this.perf.length > 10){
+                this.perf = []
+            }
             requestAnimationFrame(_loop);
         }
-        _loop();
+        _loop(0);
     }
 
     colision(){
@@ -726,7 +871,7 @@ class _Game{
 
     gameLoop =()=>{
         if(this){
-            window.requestAnimationFrame(this.loop)
+            requestAnimationFrame(this.loop)
         }
     }
     
@@ -754,7 +899,8 @@ function Game({setStage}:Props){
 
     const [pigXYState, setPigXYState] = useState([3, 3])
     const [monkXYState, setMonkXYState] = useState([100, 100])
-    const [game, setGame] = useState(()=>new _Game(setPigXYState, setMonkXYState));
+    const [cage, setCage] = useState(true);
+    const [game, setGame] = useState(()=>new _Game(setPigXYState, setMonkXYState, setCage));
 
     useEffect(()=>{
         game.gameLoop();
@@ -765,7 +911,7 @@ function Game({setStage}:Props){
         img.src = pig;
         let dims = 27
 
-        if(game.status == GameStatus.Play || game.status == GameStatus.Over){
+        if(game.status != GameStatus.Start){
         return(
             <Img width={dims} height={dims} x={pigXYState[0] - 1} y={pigXYState[1] - 3} image={img}/>
         )}
@@ -773,9 +919,9 @@ function Game({setStage}:Props){
 
     function MonkEmoji(){
         const img = new Image();
-        img.src = monkey;
+        img.src = monkeyr;
         let dims = 27
-        if(game.status == GameStatus.Play || game.status == GameStatus.Over){
+        if(game.status != GameStatus.Start){
         return(
             <Img width={dims} height={dims} x={monkXYState[0] - 2} y={monkXYState[1] - 2} image={img}/>
         )}
@@ -791,15 +937,24 @@ function Game({setStage}:Props){
         return cells;
     }
 
+    function placeCage(){
+        if(cage){
+            return game.cage.drawCage(0)}
+    }
+
     return(
         <React.Fragment>
             <span onClick={()=>setStage(St.Menu)} className='absolute noselect opacity-70 far-shadow-backtomenu text-[25px] bottom-[86%] right-[86%] text-yellow-50 border-[3px] border-white p-2 cursor-pointer hover:bg-white hover:text-black'>меню</span>
             <div className="absolute flex flex-row text-white text-[36px] bottom-[85%] left-[85%]">
                 <img className="w-[36px] h-[36px] m-3" src={cheese}/><span className="">{game.foodCounter}</span> 
             </div>
+            {(game.alert)?<span className="absolute left-[50%] bottom-[30%] text-[52px] bg-white p-1 -translate-x-[50%] z-20 text-blue-400 rounded-2xl">Хватай сыр!</span>:<></>}
             {(game.status == GameStatus.Start)?
-            <div onClick={()=>game.start()} className="absolute cursor-pointer z-10 text-[40px] bg-white w-[220px] h-[220px] flex items-center justify-center 
+            <div onClick={()=>game.intro()} className="absolute cursor-pointer z-10 text-[40px] bg-white w-[220px] h-[220px] flex items-center justify-center 
             rounded-full -translate-x-[50%] -translate-y-[50%] noselect"><span className="relative -translate-y-2">старт</span></div>:<></>}
+            {(game.status == GameStatus.Over)?
+            <div onClick={() => game.restart()} className="absolute bg-opacity-50 cursor-pointer z-10 text-[40px] bg-white w-[220px] h-[220px] flex items-center justify-center 
+            rounded-full -translate-x-[50%] -translate-y-[50%] noselect"><span className="relative -translate-y-2">рестарт?</span></div>:<></>}
             <div className="absolute border-[6px] far-shadow-game border-white p-2 -translate-x-[50%] -translate-y-[50%]">
                 <Stage className="ml-[6px] mt-[6px]" width={401} height={401}>
                     <Layer>
@@ -809,6 +964,7 @@ function Game({setStage}:Props){
                         {game.placeFoods()}
                         {/* {game.placeNodes()}
                         {game.placePaths()} */}
+                        {placeCage()}
                         {PigEmoji()}
                         {MonkEmoji()}
                     </Layer>
