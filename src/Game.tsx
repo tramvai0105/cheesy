@@ -11,6 +11,7 @@ import Path from "./Path";
 import Food from "./Food";
 import cheese from "./img/cheese.png";
 import Cage from "./Cage";
+import Banana from "./Banana";
 
 interface Props{
     setStage: Dispatch<SetStateAction<St>>,
@@ -28,16 +29,33 @@ function getRandomInt(min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function selectRandom(arr: Banana[], q: number){
+    let indexArr: number[] = [];
+    while(indexArr.length < q){
+        let random = getRandomInt(0, arr.length - 1)
+        if(!indexArr.includes(random)){
+            indexArr.push(random)
+        }
+    }
+    let newArr: Banana[] = [];
+    for(let i = 0; i < q; i++){
+        newArr.push(arr[indexArr[i]]);
+    }
+    return newArr;
+}
+
 enum GameStatus{
     Start,
     Play,
     Over,
     Intro,
+    Win,
 }
 
 class Monkey{
     x: number;
     y: number;
+    img = new Image();
     dims: number;
     speed: number = 2;
     lastPlace: Node | Path | null = null;
@@ -59,6 +77,7 @@ class Monkey{
         this.node = node;
         setMonkXY([this.x*15, this.y*15]);
         this.dims = 20
+        this.img.src = monkeyr;   
     }
     
     filterDirs(node: Node){
@@ -207,7 +226,6 @@ class Monkey{
                 if(res[res.length - 1]){
                 lastRes = res[res.length - 1][1]}
                 this.moveOrder = res;
-                console.log(res);
                 this.lastPlace = target;
                 return;
             }
@@ -330,7 +348,7 @@ class _Game{
     moving: boolean = true;
     perf: number[] = [];
     foodCounter : number = 0;
-    foodQuantity : number = 15;
+    foodQuantity : number = 17;
     pigXY = [3, 3];
     progress: number = 0;
     setCage: Dispatch<React.SetStateAction<boolean>>;
@@ -398,7 +416,7 @@ class _Game{
         new Node(20, 3, [Dirc.Right, Dirc.Down]),
         new Node(20, 6, [Dirc.Up, Dirc.Right]),
         new Node(19, 9, [Dirc.Down, Dirc.Right]),
-        new Node(19, 12, [Dirc.Up, Dirc.Left]),
+        new Node(19, 12, [Dirc.Up, Dirc.Left, Dirc.Right]),
         new Node(16, 12, [Dirc.Right, Dirc.Up, Dirc.Down]),
         new Node(16, 9, [Dirc.Left, Dirc.Down]),
         new Node(0, 18, [Dirc.Right, Dirc.Up]),
@@ -491,6 +509,14 @@ class _Game{
         new Path(8, 9, 6, true),
         new Path(8, 9, 2, false),
         ];
+    startBananas: Banana[] = [
+        new Banana(20, 14),
+        new Banana(6, 15),
+        new Banana(19, 5, 1.5, 4),
+        new Banana(16, 20, 1.5, 4),
+        new Banana(4, 23, 1.5, 4),
+        ];
+    bananas: Banana[] = [];
     path: Path | null = null;
     foods: Food[] = []; 
 
@@ -508,7 +534,8 @@ class _Game{
         this.status = GameStatus.Intro;
         this.monk.setMonkXY([170, 185]);
         this.monk.setCoords(170, 185);
-        this.addFoods()
+        this.bananas = selectRandom(this.startBananas, 3);
+        this.addFoods();
         new Promise(res=>this.monk.startAnimation(this.setCage, res))
             .then(()=>{
                 this.alert = true;
@@ -540,9 +567,17 @@ class _Game{
         this.monk.node = this.monkStartNode[0];
         this.monk.path = null;
         this.monk.progress = 0;
+        this.speed = 2;
+        this.bananas = selectRandom(this.startBananas, 3);
+        this.monk.speed = 2;
         this.monk.direction = Dirc.None;
         this.monk.setCoords(this.monk.node.x*15, this.monk.node.y*15)
         this.monk.setMonkXY([this.monk.node.x*15, this.monk.node.y*15]);
+        for(let i = 0; i < this.nodes.length; i++){
+            if(this.nodes[i].food){
+                this.nodes[i].food = null;
+            }
+        }
         this.addFoods();
         this.foodCounter = 0;
         this.status = GameStatus.Play;
@@ -575,6 +610,12 @@ class _Game{
     placePaths(){
         return(
             this.paths.map((path, i)=> path.drawPath(i))
+        )
+    }
+
+    placeBananas(){
+        return(
+            this.bananas.map((banana, i)=> banana.drawBanana(i))
         )
     }
 
@@ -653,28 +694,31 @@ class _Game{
         else return true;
     }
 
-    rectCross(rect: number[]): [boolean, Dirc]{
-        let dim = 5
-        let pigRect = [this.pigXY[0], this.pigXY[1], dim, dim]
-        if(this.intersect([pigRect[0] + dim, pigRect[0] + dim + this.speed], [rect[0], rect[0] + 3])
-            && this.intersect([pigRect[1], pigRect[1] + dim],[rect[1], rect[1] + rect[3]]))
-        {
-            return [true, Dirc.Right]
+    rectCross(rect: number[], radius: number = 20, rect2 = [this.pigXY[0], this.pigXY[1], 27, 27]): [boolean, Dirc]{
+        let dim = 27
+        if(this.direction == Dirc.Left || this.direction == Dirc.Right){
+            if(this.intersect([rect2[0] + dim - radius, rect2[0] + dim + this.speed - radius], [rect[0], rect[0] + 3])
+                && this.intersect([rect2[1], rect2[1] + dim],[rect[1], rect[1] + rect[3]]))
+            {
+                return [true, Dirc.Right]
+            }
+            if(this.intersect([rect2[0] - this.speed + radius, rect2[0] + radius], [rect[0] + rect[2] - 3, rect[0] + rect[2]])
+                && this.intersect([rect2[1], rect2[1] + dim],[rect[1], rect[1] + rect[3]]))
+            {
+                return [true, Dirc.Left]
+            }
         }
-        if(this.intersect([pigRect[1] - 2, pigRect[1]], [rect[1] + rect[3] - 3 - 4, rect[1] + rect[3] - 4])
-            && this.intersect([pigRect[0], pigRect[0] + dim],[rect[0], rect[0] + rect[2]]))
-        {
-            return [true, Dirc.Up]
-        }
-        if(this.intersect([pigRect[0] - this.speed, pigRect[0]], [rect[0] + rect[2] - 3, rect[0] + rect[2]])
-            && this.intersect([pigRect[1], pigRect[1] + dim],[rect[1], rect[1] + rect[3]]))
-        {
-            return [true, Dirc.Left]
-        }
-        if(this.intersect([pigRect[1] + dim, pigRect[1] + dim + this.speed], [rect[1] - 0, rect[1] + 3 - 0])
-            && this.intersect([pigRect[0], pigRect[0] + dim],[rect[0], rect[0] + rect[2]]))
-        {
-            return [true, Dirc.Down]
+        else{
+            if(this.intersect([rect2[1] - 2 + radius, rect2[1] + radius], [rect[1] + rect[3] - 3 - 4, rect[1] + rect[3] - 4])
+                && this.intersect([rect2[0], rect2[0] + dim],[rect[0], rect[0] + rect[2]]))
+            {
+                return [true, Dirc.Up]
+            }
+            if(this.intersect([rect2[1] + dim - radius, rect2[1] + dim + this.speed - radius], [rect[1] - 0, rect[1] + 3 - 0])
+                && this.intersect([rect2[0], rect2[0] + dim],[rect[0], rect[0] + rect[2]]))
+            {
+                return [true, Dirc.Down]
+            }
         }
         return [false, Dirc.None]
     }
@@ -757,7 +801,6 @@ class _Game{
                         this.monk.moveOrder = [];
                         this.monk.direction = Dirc.None;
                         this.monk.findPath(this.node || this.path, this.progress,{x: this.pigXY[0],y: this.pigXY[1]});
-                        console.log("found path");
                     }
                     mt = 0;
                 }
@@ -765,6 +808,9 @@ class _Game{
                 this.moveMonk();
                 this.setXY(this.pigXY);
                 this.monk.setMonkXY([this.monk.x, this.monk.y]);
+                if(this.foodCounter == this.foodQuantity){
+                    this.status = GameStatus.Win;
+                }
                 this.colision()
                 lp = 0;
                 }
@@ -786,12 +832,31 @@ class _Game{
     }
 
     colision(){
-        let borders = [[0, 391, 400, 1],[-2, 0, 1, 401], [0, 1,400,1], [391, 0, 1, 400]];
-        let obstls = [...this.obstls.map((obst)=> obst.getDims())];
+        // let borders = [[0, 391, 400, 1],[-2, 0, 1, 401], [0, 1,400,1], [391, 0, 1, 400]];
+        // let obstls = [...this.obstls.map((obst)=> obst.getDims())];
         let colisionObjects = [[this.monk.x, this.monk.y, 25, 25]];
         let res: [boolean, Dirc] = this.rectCross(colisionObjects[0])       
         if(res[0]){
             this.gameover();
+        }
+        let distanceMonk = distance.bind(this)
+        for(let i = 0; i < this.bananas.length; i++){
+            let banana = this.bananas[i]
+            if(distanceMonk(banana) < 35.7){
+                this.bananas = this.bananas.filter(banan=> banan.x != banana.x && banan.y != banana.y);
+                Promise.resolve()
+                    .then(()=>this.monk.moving = false)
+                    .then(()=>delay(1000))
+                    .then(()=>this.monk.moving = true);
+                this.monk.speed += 0.16
+            }
+        }
+        function distance(this: any, banana: Banana){
+            return Math.sqrt(
+                ((this.monk.x + 12.5) - (banana.x*15 + (banana.width / 2)))**2
+                +
+                ((this.monk.y + 12.5) - (banana.y*15 + (banana.height / 2)))**2
+                )
         }
     }
 
@@ -818,6 +883,7 @@ class _Game{
             if(this.node.food){
                 this.node.food = null;
                 this.foodCounter += 1; 
+                this.speed += 0.015
             }
             this.pigXY = [this.node.x*15 + 3, this.node.y*15 + 5]
             if(this.directionQuerry != Dirc.None){
@@ -918,13 +984,12 @@ function Game({setStage}:Props){
     }
 
     function MonkEmoji(){
-        const img = new Image();
-        img.src = monkeyr;
         let dims = 27
         if(game.status != GameStatus.Start){
-        return(
-            <Img width={dims} height={dims} x={monkXYState[0] - 2} y={monkXYState[1] - 2} image={img}/>
-        )}
+            return(
+                <Img width={dims} height={dims} x={monkXYState[0] - 2} y={monkXYState[1] - 2} image={game.monk.img}/>
+            )
+        }
     }
 
     function Grid(){
@@ -948,20 +1013,24 @@ function Game({setStage}:Props){
             <div className="absolute flex flex-row text-white text-[36px] bottom-[85%] left-[85%]">
                 <img className="w-[36px] h-[36px] m-3" src={cheese}/><span className="">{game.foodCounter}</span> 
             </div>
-            {(game.alert)?<span className="absolute left-[50%] bottom-[30%] text-[52px] bg-white p-1 -translate-x-[50%] z-20 text-blue-400 rounded-2xl">Хватай сыр!</span>:<></>}
+            {(game.alert)?<span className="absolute left-[50%] bottom-[30%] text-[52px] bg-yellow-50 p-1 -translate-x-[50%] z-20 text-blue-400 rounded-2xl">Хватай сыр!</span>:<></>}
+            {(game.status == GameStatus.Win)?
+            <div onClick={() => game.restart()} className="absolute bg-opacity-90 cursor-pointer z-10 text-[40px] bg-blue-100 w-[570px] h-[570px] flex items-center justify-center 
+            rounded-full text-black -translate-x-[50%] flex-col -translate-y-[50%] noselect"><span className="relative -translate-y-2">Вредный зверь повержен</span><span>заново?</span></div>:<></>}
             {(game.status == GameStatus.Start)?
-            <div onClick={()=>game.intro()} className="absolute cursor-pointer z-10 text-[40px] bg-white w-[220px] h-[220px] flex items-center justify-center 
+            <div onClick={()=>game.intro()} className="absolute cursor-pointer z-10 text-[40px] bg-yellow-50 w-[220px] h-[220px] flex items-center justify-center 
             rounded-full -translate-x-[50%] -translate-y-[50%] noselect"><span className="relative -translate-y-2">старт</span></div>:<></>}
             {(game.status == GameStatus.Over)?
-            <div onClick={() => game.restart()} className="absolute bg-opacity-50 cursor-pointer z-10 text-[40px] bg-white w-[220px] h-[220px] flex items-center justify-center 
+            <div onClick={() => game.restart()} className="absolute bg-opacity-50 cursor-pointer z-10 text-[40px] bg-yellow-50 w-[220px] h-[220px] flex items-center justify-center 
             rounded-full -translate-x-[50%] -translate-y-[50%] noselect"><span className="relative -translate-y-2">рестарт?</span></div>:<></>}
-            <div className="absolute border-[6px] far-shadow-game border-white p-2 -translate-x-[50%] -translate-y-[50%]">
+            <div className="absolute border-[6px] far-shadow-game border-yellow-50 p-2 -translate-x-[50%] -translate-y-[50%]">
                 <Stage className="ml-[6px] mt-[6px]" width={401} height={401}>
                     <Layer>
                         {/* {Grid()} */}
                         {/* <Rect width={390} height={390} stroke="#ADD8E6"/> */}
                         {game.placeObstl()}
                         {game.placeFoods()}
+                        {game.placeBananas()}
                         {/* {game.placeNodes()}
                         {game.placePaths()} */}
                         {placeCage()}
