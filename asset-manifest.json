@@ -1,0 +1,18 @@
+{
+  "files": {
+    "main.css": "/cheesy/static/css/main.8275eb37.css",
+    "main.js": "/cheesy/static/js/main.efa1cc39.js",
+    "static/media/pig.png": "/cheesy/static/media/pig.824f1e84b0f7a37934ed.png",
+    "static/media/monk-right.png": "/cheesy/static/media/monk-right.ea002c231f50d36babab.png",
+    "static/media/banana.png": "/cheesy/static/media/banana.77b4e07020e15567f8fd.png",
+    "static/media/cheese.png": "/cheesy/static/media/cheese.f34aced998df53dd36f7.png",
+    "static/media/cage.svg": "/cheesy/static/media/cage.63d671d26ad10250a53e21caab8845e6.svg",
+    "index.html": "/cheesy/index.html",
+    "main.8275eb37.css.map": "/cheesy/static/css/main.8275eb37.css.map",
+    "main.efa1cc39.js.map": "/cheesy/static/js/main.efa1cc39.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.8275eb37.css",
+    "static/js/main.efa1cc39.js"
+  ]
+}
